@@ -3,8 +3,10 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	_ "github.com/bmizerany/pq"
 	"log"
 	"net"
 	"os"
@@ -31,8 +33,8 @@ type LogEntry struct {
 }
 
 func main() {
-	if len(os.Args) != 2 || os.Args[1] == "--help" {
-		fmt.Printf("Usage: %s UDPADDR\n", filepath.Base(os.Args[0]))
+	if len(os.Args) != 3 || os.Args[1] == "--help" {
+		fmt.Printf("Usage: %s UDPADDR DBCONN\n", filepath.Base(os.Args[0]))
 		os.Exit(1)
 	}
 
@@ -48,11 +50,24 @@ func main() {
 
 	defer udpConn.Close()
 
+	db, err := sql.Open("postgres", os.Args[2])
+	if err != nil {
+		log.Fatal("could not connect to database", err)
+	}
+
+	defer db.Close()
+
+	err = setupTables(db)
+	if err != nil {
+		log.Fatal("could not set up tables", err)
+	}
+
 	var buf [MAX_UDP_SIZE]byte
 	for {
 		n, err := udpConn.Read(buf[:])
 		if err != nil {
 			log.Println("could not read", err)
+			continue
 		}
 
 		var le LogEntry
@@ -60,7 +75,26 @@ func main() {
 		if err != nil {
 			log.Println("could not decode JSON", err)
 		}
-		fmt.Println("Read: ", le)
 
+		_, err = db.Exec("insert into log_entries (elevel, message) values ($1, $2)", le.Elevel, le.Message)
+		if err != nil {
+			log.Println("db exec failed", err)
+		}
 	}
+}
+
+func setupTables(db *sql.DB) error {
+	rows, err := db.Query("SELECT * FROM information_schema.tables WHERE table_name = 'log_entries'")
+	if err != nil {
+		return err
+	}
+
+	if !rows.Next() {
+		_, err := db.Exec("CREATE TABLE log_entries (elevel int, message text)")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
