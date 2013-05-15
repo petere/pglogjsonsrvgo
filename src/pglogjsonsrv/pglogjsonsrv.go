@@ -70,16 +70,7 @@ func main() {
 			continue
 		}
 
-		var le LogEntry
-		err = json.Unmarshal(buf[:n], &le)
-		if err != nil {
-			log.Println("could not decode JSON", err)
-		}
-
-		_, err = db.Exec("insert into log_entries (elevel, message) values ($1, $2)", le.Elevel, le.Message)
-		if err != nil {
-			log.Println("db exec failed", err)
-		}
+		go handlePacket(buf[:n], db)
 	}
 }
 
@@ -97,4 +88,17 @@ func setupTables(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func handlePacket(buf []byte, db *sql.DB) {
+	var le LogEntry
+	err := json.Unmarshal(buf, &le)
+	if err != nil {
+		log.Println("could not decode JSON", err)
+	}
+
+	_, err = db.Exec("insert into log_entries (elevel, message) values ($1, $2)", le.Elevel, le.Message)
+	if err != nil {
+		log.Println("db exec failed", err)
+	}
 }
