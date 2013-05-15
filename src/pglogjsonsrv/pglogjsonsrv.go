@@ -18,18 +18,18 @@ const (
 )
 
 type LogEntry struct {
-	Username      string
-	Database      string
-	Remotehost    string
-	Query         string "debug_query_string"
-	Elevel        int
-	Funcname      string
-	Sqlerrcode    int
-	Message       string
-	Detail        string
-	Hint          string
-	Context       string
-	InstanceLabel string "instance_label"
+	Username      *string
+	Database      *string
+	Remotehost    *string
+	Query         *string "debug_query_string"
+	Elevel        *int
+	Funcname      *string
+	Sqlerrcode    *int
+	Message       *string
+	Detail        *string
+	Hint          *string
+	Context       *string
+	InstanceLabel *string "instance_label"
 }
 
 func main() {
@@ -95,10 +95,12 @@ func handlePacket(buf []byte, db *sql.DB) {
 	err := json.Unmarshal(buf, &le)
 	if err != nil {
 		log.Println("could not decode JSON", err)
+		return
 	}
 
 	_, err = db.Exec("insert into log_entries (elevel, message) values ($1, $2)", le.Elevel, le.Message)
 	if err != nil {
 		log.Println("db exec failed", err)
+		return
 	}
 }
